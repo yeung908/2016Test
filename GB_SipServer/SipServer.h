@@ -13,6 +13,9 @@
 #include "SipDialogs.h"
 #include "SipSocketServer.h"
 #include "AppContext.h"
+#include "SipXmlDialogs.h"
+
+typedef std::vector<osip_event_t*> SipEvents;
 
 class SipServer
 {
@@ -23,11 +26,12 @@ public:
 	int StartSipServer();			// 启动sip服务的入口函数
 
 	osip_t* sip; // 全局唯一
- 	SipLog* log;
-	SipDialogs* mSipDialogs;				// 全局唯一dialog集合
- 	SipSocketServer* mSocketServer;			// SocketServer唯一实例
- 	SipDatabase* mSipDB;
- 	std::vector<osip_event_t*> mSipEvents;	// 需要处理的event全局唯一
+ 	SipLog* log; // 日志处理信息
+ 	SipDatabase* mSipDB;    // 数据库
+	SipEvents mSipEvents;	// 需要处理的event全局唯一
+	SipDialogs* mSipDialogs;         // 全局唯一dialog集合
+ 	SipSocketServer* mSocketServer;  // SocketServer唯一实例
+	SipXmlDialogs mSipXmlDialogs;	// 记录有响应的消息记录
 
 private:
 	SipServer();				// 设置为private防止实例化对象
@@ -50,6 +54,13 @@ private:
 	int CheckPlatformStatus();
 	void CheckUpperStatus(int timeout);
 	void CheckLowerStatus(int timeout);
+
+	// sipTransaction计时器处理函数
+	static int SipTransactionTimerExec();
+	static int IctTransactionTimersExec(osip_t* sip);
+	static int IstTransactionTimersExec(osip_t* sip);
+	static int NictTransactionTimersExec(osip_t* sip);
+	static int NistTransactionTimersExec(osip_t* sip);
 };
 
 #endif // _SIP_SERVER_H_

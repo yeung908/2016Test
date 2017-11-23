@@ -304,7 +304,135 @@ int SipServer::CheckPlatformStatus()
 
 void SipServer::CheckUpperStatus(int timeout)
 {
+	SipServer *sipServer = SipServer::GetInstance();
+	osip_dialog_t* registerDialog = nullptr;
+	DialogInfo* regDialogInfo = nullptr;
 
+	time_t nowTime = 0;
+	int validityTime = 60 * 30; // 注册有效期
+
+	// 获取上联平台和互联平台SipID，都视为上级对待
+	std::vector<std::string> vecUpperSipIDs;
+	sipServer->mSipDB->GetUpperPlatformIDs(vecUpperSipIDs);
+
+	for each (std::string platformSipID in vecUpperSipIDs)
+	{
+		registerDialog = sipServer->mSipDialogs->FindRegisterDialog(platformSipID, UAC);
+		if (registerDialog != nullptr) // 已注册
+		{
+			regDialogInfo = (DialogInfo*)registerDialog->your_instance;
+
+			// 验证是否超时
+			nowTime = time(NULL);
+			if ((nowTime - (regDialogInfo->lastResponseTime)) > timeout) // 已超时，删除dialog，重新注册
+			{
+				// 将上级状态设置为‘OFF’
+				sipServer->mSipDB->SetDeviceStatus(platformSipID, "OFF");
+
+				// 停止上级调看的所有视频
+				osip_dialog_t* inviteDialog = nullptr;
+				DialogInfo* inviteDialogInfo = nullptr;
+				for each (int inviteDialogID in regDialogInfo->inviteDialogIDs)
+				{
+					inviteDialog = sipServer->mSipDialogs->FindSipDialogByDialogID(inviteDialogID, DialogType::PLAY_INVITE_DIALOG);
+					if (inviteDialog != nullptr)
+					{
+						inviteDialogInfo = (DialogInfo*)inviteDialog->your_instance;
+					
+// 						// 与streaming通信停止接收码流
+// 						if (inviteDialogInfo->httpsHandleId > 0)
+// 						{
+// 							Sip2HttpsParam sip2HttpsParam;
+// 						}
+					
+						// 查找与之关联的下级dialog，存在则向下级发送bye
+						osip_dialog_t* calleeInviteDialog = nullptr;
+						DialogInfo* calleeInviteDialogInfo = nullptr;
+
+						int calleeInviteDialogID = inviteDialogInfo->calleeDialogID;
+						calleeInviteDialog = sipServer->mSipDialogs->FindSipDialogByDialogID(calleeInviteDialogID, DialogType::PLAY_INVITE_DIALOG);
+						if (calleeInviteDialog != nullptr)
+						{
+							calleeInviteDialogInfo = (DialogInfo*)calleeInviteDialog->your_instance;
+
+							// 向下级发送bye
+							osip_message_t* byeSipMsg = nullptr;
+// 							sipMsgObj.CreateByeMsg(byeSipMsg,
+// 								calleeInviteDialogInfo->cameraID,
+// 								calleeInviteDialog->call_id,
+// 								calleeInviteDialog->local_tag,
+// 								calleeInviteDialog->remote_tag);
+							osip_event_t* byeEvent = osip_new_outgoing_sipmessage(byeSipMsg);
+							ProcessOutGoingMessage(nullptr, byeEvent);
+
+							// 从注册dialog中将该dialogID移除，由设备sipid获取平台sipid
+							std::string lowerPlatformSipId = "";
+							osip_dialog_t* lowerRegisterDialog = sipServer->mSipDialogs->FindRegisterDialog(lowerPlatformSipId, UAS);
+
+							// 将该dialog释放
+							//sipServer->mSipDialogs->RemoveSipDialogByDialogID(calleeInviteDialogID, INVITEDIALOG);
+							sipServer->mSipDialogs->DestorySipDialog(calleeInviteDialog);
+						}
+					}
+
+					// 释放与上级关联的dialog的内存
+					sipServer->mSipDialogs->RemoveSipDialogByDialogID(inviteDialogInfo->dialogID, DialogType::PLAY_INVITE_DIALOG); // 从队列中移除
+					sipServer->mSipDialogs->DestorySipDialog(inviteDialog);
+					inviteDialog = nullptr;
+				}
+
+				// 删除已存在注册dialog
+				sipServer->mSipDialogs->RemoveSipDialogByDialogID(regDialogInfo->dialogID, DialogType::REGISTER_DIALOG);
+				sipServer->mSipDialogs->DestorySipDialog(registerDialog);
+				registerDialog = nullptr;
+
+				// 重新注册
+				SipMsgBuilder* sipMsgBuilder = new SipMsgBuilder;
+				osip_message_t* registerMsg = nullptr;
+				sipMsgBuilder->CreateRegisterMsg(registerMsg, platformSipID.c_str());
+				osip_event_t* event = osip_new_outgoing_sipmessage(registerMsg);
+				sipServer->ProcessOutGoingMessage(nullptr, event);
+				delete sipMsgBuilder;
+				sipMsgBuilder = nullptr;
+			}
+			else // 未超时
+			{
+				// 检查有效注册期是否已达到
+				nowTime = time(NULL);
+				if ((nowTime - (regDialogInfo->birthTime)) > validityTime) // 已过有效期，重新注册 
+				{
+					// 获取上次注册的fromTag、toTag和callID
+					std::string callID = registerDialog->call_id;
+					std::string fromTag = registerDialog->local_tag;
+					std::string toTag = registerDialog->remote_tag;
+
+					// 重新向上级注册
+					SipMsgBuilder* sipMsgBuilder = new SipMsgBuilder;
+					osip_message_t* registerMsg = nullptr;
+					//SipMsgBuilder->CreateRegMsgAgain(registerMsg, platformSipID, callID, fromTag, toTag);
+					osip_event_t* registerEvent = osip_new_outgoing_sipmessage(registerMsg);
+					sipServer->ProcessOutGoingMessage(nullptr, registerEvent);
+					delete sipMsgBuilder;
+					sipMsgBuilder = nullptr;
+				}
+				else // 未超时且在有效期内，发送keepalive
+				{
+
+				}
+			}
+		}
+		else // dialog 不存在，还未向上级注册，或注册未成功
+		{
+			// 重新注册
+			SipMsgBuilder* sipMsgBuilder = new SipMsgBuilder;
+			osip_message_t* registerMsg = nullptr;
+			sipMsgBuilder->CreateRegisterMsg(registerMsg, platformSipID.c_str());
+			osip_event_t* event = osip_new_outgoing_sipmessage(registerMsg);
+			sipServer->ProcessOutGoingMessage(nullptr, event);
+			delete sipMsgBuilder;
+			sipMsgBuilder = nullptr;
+		}
+	}
 }
 
 void SipServer::CheckLowerStatus(int timeout)

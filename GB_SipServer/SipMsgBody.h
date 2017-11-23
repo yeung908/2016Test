@@ -4,8 +4,10 @@
 #include <string>
 #include <vector>
 #include <bitset>
+#include <map>
 
 #include "SipDefine.h"
+#include "SipUtilities.h"
 
 ////////////////////////////////RTSP//////////////////////////////////////////
 enum RTSP_TYPE
@@ -96,18 +98,24 @@ typedef struct T_Param
 
 typedef struct M_Param
 {
-	bool isAudio;
-	bool isRecvOnly;
+	//bool isAudio;
+	std::string mediaType;
+	//bool isRecvOnly;
+	std::string onlyType;
 	int port;
+	std::string rtpType;
 	std::string transType;
 	std::vector<std::string> payloads;
-	std::vector<std::string> mAttributes;
+	std::vector<std::string> attributes;
 	M_Param()
 	{
 		port = 0;
-		isAudio = false;
-		isRecvOnly = false;
-		transType = "UDP";
+		//isAudio = false;
+		mediaType = "video";
+		//isRecvOnly = false;
+		onlyType = "recvonly";
+		rtpType = "RTP/AVP";
+		transType = "";
 	}
 }M_Param;
 
@@ -140,32 +148,44 @@ typedef struct PtzControlParam
 	std::string ptzCmdValue;
 };
 
-typedef struct ResetAlarmParam
+typedef struct AlarmInfoParam
 {
 	std::string alarmMethod;
 	std::string alarmType;
+}AlarmInfoParam;
+
+typedef struct ResetAlarmParam
+{
+	std::string resetAlarm;
+	std::string alarmMethod;
+	std::string alarmType;
+	//std::vector<AlarmInfoParam> alarmInfoParam;
+	ResetAlarmParam()
+	{
+		resetAlarm = "ResetAlarm";
+	}
 }ResetAlarmParam;
 
-typedef struct DragZoonParam
+typedef struct DragZoomParam
 {
-	bool isOut;
+	bool isZoomOut;
 	int length;
 	int width;
 	int midPointX;
 	int midPointY;
 	int lengthX;
 	int lengthY;
-	DragZoonParam()
+	DragZoomParam()
 	{
-		isOut = true;
+		isZoomOut = true;
 	}
-};
+}DragZoomParam;
 
 typedef struct HomePositionParam
 {
-	std::string enabled;
-	std::string resetTime;
-	std::string presetIndex;
+	int enabled;
+	int resetTime;
+	int presetIndex;
 }HomePositionParam;
 
 typedef struct DeviceConfigParam
@@ -186,11 +206,11 @@ typedef struct ControlCmdParam
 	std::string       teleBootParam;   // 远程启动命令
 	std::string       recordType;      // 录像控制类型，Record/StopRecord
 	std::string       guardType;       // 布防、撤防控制类型，SetGuard/ResetGuard
-	ResetAlarmParam   alarmPara;       // 报警复位命令及其扩展参数
+	ResetAlarmParam   alarmParam;       // 报警复位命令及其扩展参数
 	std::string       iFame;           // 强制关键帧
-	DragZoonParam     dragZoon;        // 拉框放大缩小
-	HomePositionParam homePositionPara;	// 看守卫控制命令
-	DeviceConfigParam deviceConfigPara;	// 设备配置
+	DragZoomParam     dragZoom;        // 拉框放大缩小
+	HomePositionParam homePositionParam;	// 看守卫控制命令
+	DeviceConfigParam deviceConfigParam;	// 设备配置
 }ControlParam;
 
 // Query
@@ -201,7 +221,7 @@ typedef struct QueryCatalog
 	std::string endTime;
 }QueryCatalog;
 
-typedef struct QueryRecordInfo
+typedef struct QueryRecordInfoParam
 {
 	std::string startTime;	// 录像起始时间
 	std::string endTime;	// 录像终止时间
@@ -210,7 +230,7 @@ typedef struct QueryRecordInfo
 	std::string secrecy;	// 录像保密属性，可选
 	std::string type;		// 录像产生类型，可选
 	std::string recorderID;	// 录像触发者id，可选
-}QueryRecordInfo;
+}QueryRecordInfoParam;
 
 typedef struct QueryAlarmParam
 {
@@ -225,16 +245,17 @@ typedef struct QueryAlarmParam
 typedef struct QueryCmdParam
 {
 	// ???设备状态查询，无需参数	
-	QueryCatalog queryDeviceCatalog;// 设备目录信息查询
+	QueryCatalog queryCatalogParam;// 设备目录信息查询
 									// ???设备信息查询，无需参数
-	QueryRecordInfo queryRecordInfo;// 文件目录检索请求
-	QueryAlarmParam queryAlarmPara;	// 报警查询
+	QueryRecordInfoParam queryRecordInfoParam;// 文件目录检索请求
+	QueryAlarmParam queryAlarmParam;	// 报警查询
 	std::string configType;			// 设备配置信息查询
 									// 设备预置位查询，无需参数
 	int mobileInterval;		// 移动设备位置数据查询
 	QueryCmdParam()
 	{
 		mobileInterval = 5;
+		configType = "BasicParam";
 	}
 }QueryParam;
 
@@ -301,9 +322,100 @@ typedef struct NotifyCmdParam
 }NotifyParam;
 
 // Response
+
+// 从下级获取目录解析时和向上级汇报目录时使用
+typedef struct CatalogInformation
+{
+	std::string tableName;
+	std::map<std::string, std::string> valuesMap;
+}CatalogItem, CatalogInfo;
+
+typedef struct CatalogItemAndInfo			// 向上级汇报资源点使用
+{
+	CatalogItem resItem;					// 摄像机/设备信息
+	CatalogInfo cameraInfo;					// 摄像机扩展信息
+}CatalogItemAndInfo;
+typedef  std::vector<CatalogItemAndInfo> RespCatalogParam;
+
+typedef struct RespDeviceInfoParam
+{
+	std::string deviceName;	  // 目标设备名称
+	std::string result;		  // 查询结果
+	std::string manufacturer; // 设备生产商
+	std::string model;		  // 设备型号
+	std::string firmware;	  // 设备固件版本
+	std::string channel;	  // 视频输入通道数
+	std::string info;		  // 扩展信息
+}RespDeviceInfoParam;
+
+typedef struct ResDevStatusInfoAlarmstatus
+{
+	std::string deviceID;
+	std::string dutyStatus; // "ONDUTY" "OFFDUTY" "ALARM"
+}Alarmstatus;
+
+typedef struct RespDeviceStatusParam
+{
+	std::string result;	// 查询结果"OK"或"ERROR"
+	std::string online;	// "ONLINE" "OFFLINE"
+	std::string status;	// 是否正常工作"OK"或"ERROR"
+	std::string reason;	// 原因
+	std::string encode;	// 是否编码 "ON"或"OFF"
+	std::string record;	// 是否录像 "ON"或"OFF"
+	std::string deviceTime; // 设备时间或日期
+	std::vector<Alarmstatus> alarmStatus; // 报警设备状态列表
+	std::string info;       // 扩展信息
+}RespDeviceStatusParam;
+
+typedef QueryRecordInfoParam RespRecordInfoItem;
+typedef struct RespRecordInfoParam
+{
+	std::string name;	// 摄像机名称
+	std::string sumNum;	// 总历史视频数
+	int recordListNum;	// 该次收到的历史视频片段数
+	std::vector<RespRecordInfoItem> recordInfoItems;
+}RespRecordInfoParam;
+
+typedef struct RespConfigDownloadParam
+{
+	std::string result;
+
+	// deviceConfig基本参数配置
+	std::string name;		        // 设备名称
+	std::string expiration;			// 注册过期时间
+	std::string heartBeatInterval;	// 心跳间隔时间
+	std::string heartBeatCount;		// 心跳超时次数
+	std::string positionCapaility;
+	std::string Longitude;
+	std::string Latitude;
+}RespConfigDownloadParam;
+
+typedef struct RespPresetParam
+{
+	std::string presetID;
+	std::string presetName;
+}RespPresetParam;
+typedef std::vector<RespPresetParam> RespPresetParams;
+
 typedef struct ResponseCmdParam
 {
+	std::string result; // 设备控制命令应答"OK"或"ERROR"
+						// 报警通知应答"OK"或"ERROR"
+						// 目录信息查询收到应答"OK"或"ERROR"
+						// 设备配置应答"OK"或"ERROR"
+						// 语音广播应答"OK"或"ERROR"
 
+	RespCatalogParam        catalogParam;		 // 设备目录查询应答
+	RespDeviceInfoParam     devInfoParam;		 // 设备信息查询应答
+	RespDeviceStatusParam   devStatusParam;		 // 设备状态信息查询应答
+	RespRecordInfoParam     recordInfoParam;	 // 文件目录检索应答
+	RespConfigDownloadParam configDownloadParam; // 设备配置查询应答
+	RespPresetParams        presetList;          // 设备预置位查询应答
+
+	ResponseCmdParam()
+	{
+		result = "OK";
+	}
 }ResponseParam;
 
 
@@ -330,6 +442,7 @@ typedef struct XmlCmdParam
 	}
 }XmlParam;
 //////////////////////////////////////////////////////////////////////////
+
 class SipMsgBody
 {
 public:

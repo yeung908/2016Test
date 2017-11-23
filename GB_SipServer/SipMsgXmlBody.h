@@ -4,6 +4,10 @@
 #include "SipMsgBody.h"
 #include "SipDatabase.h"
 
+#define TBL_Group		"TBL_Group"
+#define TBL_Camera		"TBL_Camera"
+#define TBL_Res_Attr	"TBL_Res_Attr"
+
 typedef int(*CreateBodyCallback)(tinyxml2::XMLDocument* &xmlDoc, XmlCmdParam &xmlParam);
 typedef int(*ParserBodyCallback)(tinyxml2::XMLElement* &rootEle, XmlCmdParam &xmlParam);
 
@@ -69,9 +73,23 @@ private:
 	static int ResponseDeviceStatusQuery(tinyxml2::XMLDocument* &xmlDoc, XmlCmdParam &xmlParam);// 设备状态信息查询应答
 	static int ResponseRecordInfo(tinyxml2::XMLDocument* &xmlDoc, XmlCmdParam &xmlParam);		// 文件目录检索应答
 	static int ResponseDeviceConfig(tinyxml2::XMLDocument* &xmlDoc, XmlCmdParam &xmlParam);	    // 设备配置应答
-	static int ResponseDeviceDownload(tinyxml2::XMLDocument* &xmlDoc, XmlCmdParam &xmlParam);	// 设备配置查询应答
+	static int ResponseConfigDownload(tinyxml2::XMLDocument* &xmlDoc, XmlCmdParam &xmlParam);	// 设备配置查询应答
 	static int ResponsePresetQuery(tinyxml2::XMLDocument* &xmlDoc, XmlCmdParam &xmlParam);		// 设备预置位查询应答
 	static int ResponseBroadcast(tinyxml2::XMLDocument* &xmlDoc, XmlCmdParam &xmlParam);		// 语音广播应答
+
+	/////////////////////////////////XML文件解析/////////////////////////////////////////
+	static int ParserControl(tinyxml2::XMLElement* &xmlRootElement, XmlCmdParam &xmlParam);
+	static int ParserDeviceControl(tinyxml2::XMLElement* &xmlRootElement, XmlCmdParam &xmlParam);
+	static int ParserDeviceConfig(tinyxml2::XMLElement* &xmlRootElement, XmlCmdParam &xmlParam);
+
+	static int ParserQuery(tinyxml2::XMLElement* &xmlRootElement, XmlCmdParam &xmlParam);
+
+	static int ParserNotify(tinyxml2::XMLElement* &xmlRootElement, XmlCmdParam &xmlParam);
+
+	static int ParserResponse(tinyxml2::XMLElement* &xmlRootElement, XmlCmdParam &xmlParam);
+	static int ParserResponseCatalog(tinyxml2::XMLElement* &xmlRootElement, XmlCmdParam &xmlParam);
+	static int ParserResponseRecordInfo(tinyxml2::XMLElement* &xmlRootElement, XmlCmdParam &xmlParam);
+
 	
 	// Xml文档操作
 	static void InsertChildElement(tinyxml2::XMLDocument *& xmlDoc,
